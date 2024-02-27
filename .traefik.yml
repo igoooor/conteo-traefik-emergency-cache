@@ -1,0 +1,7 @@
+displayName: Conteo Traefik Emergency Cache
+summary: Cache plugin middleware caches responses on external cache API for emergency access.
+type: middleware
+import: github.com/igoooor/conteo-traefik-emergency-cache
+compatibility: TODO
+testData:
+  path: /tmp
