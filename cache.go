@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
-
-	// "regexp"
-
 	"time"
 
 	"github.com/igoooor/conteo-traefik-emergency-cache/provider/api"
@@ -79,7 +77,8 @@ func (m *cache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key := m.cacheKey(r, true)
+	hasTrackingParameters := m.hasTrackingParameters(r.URL)
+	key := m.cacheKey(r, !hasTrackingParameters)
 
 	if m.cfg.EmergencyMode {
 		if m.cfg.Debug {
@@ -112,7 +111,14 @@ func (m *cache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rw := &responseWriter{ResponseWriter: w}
 	m.next.ServeHTTP(rw, r)
 
-	if !m.cacheable(r, w, rw.status) {
+	if hasTrackingParameters {
+		if m.cfg.Debug {
+			log.Printf("[Emergency Cache] DEBUG request not cacheable")
+		}
+		return
+	}
+
+	if !m.cacheableResponse(r, w, rw.status) {
 		if m.cfg.Debug {
 			log.Printf("[Emergency Cache] DEBUG response not cacheable")
 		}
@@ -155,7 +161,20 @@ func (m *cache) processCachedResponse(r *http.Request, w http.ResponseWriter, b 
 	return false
 }
 
-func (m *cache) cacheable(r *http.Request, w http.ResponseWriter, status int) bool {
+func (m *cache) hasTrackingParameters(u *url.URL) bool {
+	query := u.Query()
+	for param := range query {
+		if strings.HasPrefix(param, "utm_") || strings.Contains(param, "fbclid") || strings.Contains(param, "gclid") || strings.Contains(param, "dclid") {
+			if m.cfg.Debug {
+				log.Printf("[Emergency Cache] DEBUG Tracking parameter found: %s", param)
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func (m *cache) cacheableResponse(r *http.Request, w http.ResponseWriter, status int) bool {
 	if m.cfg.Debug {
 		log.Printf("[Emergency Cache] DEBUG cacheable?")
 	}
